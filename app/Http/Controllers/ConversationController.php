@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Conversation;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Auth;
 
 class ConversationController extends Controller
 {
@@ -25,5 +26,17 @@ class ConversationController extends Controller
         $request->user()->conversations()->delete();
 
         return back()->with('message', 'Historique effacé.');
+    }
+
+    // méthode pour créer une nouvelle conversation
+    public function store(Request $request)
+    {
+        $conversation = Conversation::create([
+            'user_id' => Auth::id(),
+            'title'   => $request->input('title', 'Nouvelle conversation'),
+        ]);
+
+        return redirect()->route('ask.index');
+        // ou vers ma page principale avec Inertia
     }
 }

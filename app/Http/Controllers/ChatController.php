@@ -7,6 +7,8 @@ use App\Models\Conversation;
 use App\Models\Message;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+
 
 class ChatController extends Controller
 {
@@ -84,5 +86,40 @@ class ChatController extends Controller
         $conversation->update(['title' => $title]);
 
         return response()->json(['title' => $title]);
+    }
+
+    public function stream(Request $request)
+    {
+        // Vérification utilisateur connecté
+        $user = $request->user();
+
+        $conversationId = $request->input('conversation_id');
+        $prompt = $request->input('prompt');
+
+        // Ex : récupération du LLM via ton service
+        $llmService = app(\App\Services\ChatService::class);
+
+        return new StreamedResponse(function () use ($llmService, $prompt, $conversationId, $user) {
+            // Important : header SSE
+            echo "retry: 1000\n"; // délai avant reconnexion auto
+            flush();
+
+            // Ici tu appelles ton API LLM (OpenRouter ou autre)
+            foreach ($llmService->stream($prompt) as $chunk) {
+                // chaque morceau est envoyé au frontend
+                echo "data: " . json_encode(['content' => $chunk]) . "\n\n";
+                ob_flush();
+                flush();
+            }
+
+            // Fin du stream
+            echo "data: [DONE]\n\n";
+            ob_flush();
+            flush();
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Connection' => 'keep-alive',
+        ]);
     }
 }

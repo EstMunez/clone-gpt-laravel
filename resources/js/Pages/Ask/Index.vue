@@ -66,25 +66,65 @@ function loadConversation(conversation) {
     })
 }
 
+// --- Streaming submit ---
 const submitForm = async () => {
     if (!form.model && validModels.value.length) {
         form.model = validModels.value[0].id
         await nextTick()
     }
-    form.post(route('ask.send'), {
-        onSuccess: (page) => {
-            if (page.props.history) {
-                form.history = page.props.history
-            }
-            form.reset('message')
-            scrollToBottom()
+
+    const userMessage = { role: 'user', content: form.message }
+    form.history.push(userMessage)
+
+    const assistantMessage = { role: 'assistant', content: '' }
+    form.history.push(assistantMessage)
+
+    const response = await fetch(route('ask.stream'), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.head.querySelector('meta[name=csrf-token]').content
         },
-        onError: () => console.log('Erreur', form.errors),
+        body: JSON.stringify({
+            message: form.message,
+            model: form.model,
+            history: form.history
+        })
     })
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+
+    while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const parts = buffer.split('\n')
+
+        for (let i = 0; i < parts.length - 1; i++) {
+            const text = parts[i].trim()
+            if (text) {
+                assistantMessage.content += text
+                scrollToBottom()
+            }
+        }
+        buffer = parts[parts.length - 1]
+    }
+
+    form.reset('message')
+    scrollToBottom()
 }
 
+// Correction pour le bouton « Nouvelle conversation »
 function startNewConversation() {
-    Inertia.post(route('ask.newConversation'))
+    Inertia.post(route('conversations.new'), {}, {
+        onSuccess: (page) => {
+            form.history = []
+            scrollToBottom()
+        }
+    })
 }
 </script>
 
@@ -94,7 +134,7 @@ function startNewConversation() {
 
             <!-- Header -->
             <header class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                <h1 class="text-3xl font-semibold tracking-tight">MiniChatgpt </h1>
+                <h1 class="text-3xl font-semibold tracking-tight">MiniChatgpt</h1>
                 <button
                     @click="startNewConversation"
                     class="text-indigo-600 hover:text-indigo-800 font-semibold transition"
@@ -142,14 +182,14 @@ function startNewConversation() {
 
             <!-- Formulaire -->
             <form @submit.prevent="submitForm" class="border-t border-gray-200 px-6 py-4 flex flex-col gap-4 bg-white">
-        <textarea
-            v-model="form.message"
-            rows="3"
-            placeholder="Écris ta question ici..."
-            class="resize-none rounded-md border border-gray-300 p-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            :class="{ 'border-red-500': form.errors.message }"
-            required
-        ></textarea>
+                <textarea
+                    v-model="form.message"
+                    rows="3"
+                    placeholder="Écris ta question ici..."
+                    class="resize-none rounded-md border border-gray-300 p-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    :class="{ 'border-red-500': form.errors.message }"
+                    required
+                ></textarea>
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <select
                         v-model="form.model"
@@ -228,12 +268,12 @@ function startNewConversation() {
 }
 
 .scrollbar-thumb-gray-300::-webkit-scrollbar-thumb {
-    background-color: #d1d5db; /* Tailwind gray-300 */
+    background-color: #d1d5db;
     border-radius: 9999px;
 }
 
 .scrollbar-track-gray-100::-webkit-scrollbar-track {
-    background-color: #f3f4f6; /* Tailwind gray-100 */
+    background-color: #f3f4f6;
     border-radius: 9999px;
 }
 
@@ -242,4 +282,3 @@ function startNewConversation() {
     height: 8px;
 }
 </style>
-

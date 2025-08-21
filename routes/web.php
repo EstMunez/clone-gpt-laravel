@@ -32,12 +32,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Affichage d’une conversation spécifique
     Route::get('/conversations/{conversation}', [ConversationController::class, 'show'])->name('conversations.show');
+    Route::post('/conversations/new', [ConversationController::class, 'store'])
+        ->name('conversations.new');
+    Route::post('/conversations', [ConversationController::class, 'store'])->name('conversations.store');
+
+
 
     // Suppression de l’historique complet
     Route::delete('/history/clear', [AskController::class, 'clear'])->name('history.clear')->middleware('auth');
 
     // Page "Chat"  /ask  (peux la supprimer si inutile)
     Route::get('/chat', [IndexController::class, 'index'])->name('chat');
+
+    //Streaming
+    Route::post('/chat/stream', [ChatController::class, 'stream'])->name('chat.stream');
+
 
     // Dashboard
     Route::get('/dashboard', fn () => Inertia::render('Dashboard'))->name('dashboard');
